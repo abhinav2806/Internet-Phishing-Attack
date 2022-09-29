@@ -1,0 +1,154 @@
+---
+title: "PhishingAttack"
+author: "Abhinav Ram Bhatta, Prajwal Prashanth, Anviksha Gupta"
+date: "2022-09-28"
+output: html_document
+---
+
+```{r}
+library("rpart")
+library("ggplot2")
+library("tidyverse")
+library("psych")
+library("corrplot")
+library("RColorBrewer")
+```
+
+Load Dataset
+
+```{r}
+q5=read.csv("/Users/abhinavram/Documents/IDS572 Data Mining/Assignment 1/Q5.csv")
+```
+
+Summary of dataset
+
+```{r}
+summary(q5)
+```
+
+Checking for missing values
+
+```{r}
+sapply(q5, function(x) sum(is.na(x)))
+```
+
+Split data into training and test
+
+```{r}
+set.seed(1)
+sample <- sample(c(TRUE, FALSE), nrow(q5), replace=TRUE, prob=c(0.7,0.3))
+q5_train  <- q5[sample, ]
+q5_test   <- q5[!sample, ]
+
+q5_train = select(q5_train, -id)
+q5_test = select(q5_test, -id)
+
+```
+
+Correlation Plot
+
+```{r}
+cor_graph_phishing <- cor(q5_train)
+corrplot(cor_graph_phishing, type="upper",order= "hclust", tl.cex = 0.7,col=brewer.pal(n=8, name="RdYlBu"))
+```
+Box Plot
+```{r}
+boxplot(q5_train)
+```
+
+No outliers in this data
+
+Decision Tree
+
+```{r}
+library(rpart.plot)
+fit_phishing=rpart(Result~.,data=q5_train, parms = list(split="information"), method = 'class')
+rpart.plot(fit_phishing, extra = 106)
+
+q5_train$Result <- as.numeric(q5_train$Result)
+cor_graph_phishing <- cor(q5_train)
+corrplot(cor_graph_phishing, type="upper",order= "hclust",tl.cex = 0.7,col=brewer.pal(n=8, name="RdYlBu"))
+```
+
+Confusion Matrix for combined and accuracy
+
+```{r}
+t_pred_phishing=predict(fit_phishing, q5_train, type='class')
+table(q5_train$Result, t_pred_phishing)
+confusion_mat_phishing_dt = table(q5_train$Result, t_pred_phishing)
+acc_phishing_dt = sum(diag(confusion_mat_phishing_dt))/sum(confusion_mat_phishing_dt)
+print(confusion_mat_phishing_dt)
+print(acc_phishing_dt)
+```
+
+ggplot
+
+```{r}
+df_phishing=data.frame(imp=fit_phishing$variable.importance)
+df2_phishing=df_phishing %>%
+  tibble::rownames_to_column()%>%
+  dplyr::rename("variable"= rowname)%>%
+  dplyr::arrange(imp)%>%
+  dplyr::mutate(variable = forcats::fct_inorder(variable))
+ggplot2::ggplot(df2_phishing) + 
+  geom_col(aes(x=variable, y=imp), col="black", show.legend = F) +
+  coord_flip() +
+  scale_fill_grey() +
+  theme_bw()
+```
+
+Confusion Matrix for test
+
+```{r}
+
+t_pred_phishing_test=predict(fit_phishing, q5_test, type='class')
+
+table(q5_test$Result, t_pred_phishing_test)
+confusion_mat_test_phishing_dt = table(q5_test$Result, t_pred_phishing_test)
+accTest_phishing_dt = sum(diag(confusion_mat_test_phishing_dt))/sum(confusion_mat_test_phishing_dt)
+print(confusion_mat_phishing_dt)
+print(accTest_phishing_dt)
+```
+
+Random Forest
+
+```{r}
+library(party)
+library(randomForest)
+library(caret)
+q5_train$Result <- as.character(q5_train$Result)
+q5_train$Result <- as.factor(q5_train$Result)
+set.seed(1234)
+fit_rf=randomForest(Result~ SSLfinal_State + URL_of_Anchor + web_traffic , data=q5_train, ntree=500,
+                 importance=TRUE, proximity=TRUE)
+```
+
+View the forest results
+
+```{r}
+print(fit_rf) 
+```
+
+Importance of each predictor.
+
+```{r}
+out.importance <- round(importance(fit_rf), 2)
+print(out.importance )
+```
+
+Graph of RF Model
+
+```{r}
+varImpPlot(fit_rf)
+plot(fit_rf)
+```
+
+
+As we increase the number of trees, the error decreases exponentially. 
+This is why we prefer Random Forest over Decision Tree.
+Moreover, for large quantities of data, Random Forest is more effective and quicker than Decision Tree.
+
+From the above data we can observe %IncMSE and IncNodePurity where they define Mean Decrease Accuracy and Mean Decrease Gini respecively. With the former, it shows how much our accuracy will get affected without that particular variable and the latter shows how important a variable is (higher is better).
+
+Accuracy of Decision Tree = 90.27%
+Accuracy of Random Forest = 91.57%
